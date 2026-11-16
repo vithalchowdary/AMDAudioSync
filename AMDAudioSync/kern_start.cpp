@@ -1,9 +1,6 @@
 //
 //  kern_start.cpp
-//
-//  Standalone Lilu plugin that dynamically resolves the active AMD Display Core
-//  Azalia audio endpoint (dce_aud->inst) and syncs Apple's `audio-codec-info`
-//  IORegistry property on AMDRadeonX6000Framebuffer.
+//  AMDAudioSync
 //
 
 #include <Headers/plugin_start.hpp>
@@ -11,18 +8,16 @@
 #include <Headers/kern_util.hpp>
 #include "AMDAudioSync.hpp"
 
-static AMDAudioSync audioFixInstance;
-
 const char *bootargOff[] {
-    "-amdasoff"
+    "-adasoff"
 };
 
 const char *bootargDebug[] {
-    "-amdasdbg"
+    "-adasdbg"
 };
 
 const char *bootargBeta[] {
-    "-amdasbeta"
+    "-adasbeta"
 };
 
 PluginConfiguration ADDPR(config) {
@@ -38,6 +33,6 @@ PluginConfiguration ADDPR(config) {
     KernelVersion::Catalina,
     KernelVersion::Tahoe,
     []() {
-        audioFixInstance.init();
+        AMDAudioSync::init();
     }
 };

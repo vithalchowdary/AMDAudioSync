@@ -1,4 +1,4 @@
-name: Build NootedAudioFix
+name: Build AMDAudioSync
 
 on:
   push:
@@ -23,11 +23,11 @@ jobs:
       - name: Package Kext
         run: |
           cd build/Release
-          zip -r NootedAudioFix-RELEASE.zip NootedAudioFix.kext
+          zip -r AMDAudioSync-RELEASE.zip AMDAudioSync.kext
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NootedAudioFix-RELEASE
-          path: build/Release/NootedAudioFix-RELEASE.zip
+          name: AMDAudioSync-RELEASE
+          path: build/Release/AMDAudioSync-RELEASE.zip
 

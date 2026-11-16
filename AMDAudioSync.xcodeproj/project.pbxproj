@@ -13,7 +13,7 @@
 
 /* Begin PBXFileReference section */
 		A20000010000000000000001 /* kern_start.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = kern_start.cpp; sourceTree = "<group>"; };
-		A20000020000000000000001 /* AMDAudioSync */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = AMDAudioSync.cpp; sourceTree = "<group>"; };
+		A20000020000000000000001 /* AMDAudioSync.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = AMDAudioSync.cpp; sourceTree = "<group>"; };
 		A20000030000000000000001 /* AMDAudioSync.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = AMDAudioSync.hpp; sourceTree = "<group>"; };
 		A20000040000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A30000010000000000000001 /* AMDAudioSync.kext */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AMDAudioSync.kext; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -106,12 +106,13 @@
 		A90000010000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
 				CLANG_CXX_LIBRARY = "libc++";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)",
+					"$(SRCROOT)",
 				);
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
@@ -119,8 +120,8 @@
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)/Lilu.kext/Contents/Resources",
-					"$(PROJECT_DIR)/MacKernelSDK/Headers",
+					"$(SRCROOT)/Lilu.kext/Contents/Resources",
+					"$(SRCROOT)/MacKernelSDK/Headers",
 				);
 				INFOPLIST_FILE = AMDAudioSync/Info.plist;
 				MODULE_NAME = dev.vitthal.AMDAudioSync;
@@ -129,12 +130,12 @@
 				MODULE_VERSION = 1.0.0;
 				OTHER_LDFLAGS = (
 					"-Wl,-unexported_symbol,__ZN19KernelPatcherPlugin*",
-					"$(PROJECT_DIR)/Lilu.kext/Contents/MacOS/Lilu",
+					"$(SRCROOT)/Lilu.kext/Contents/MacOS/Lilu",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = dev.vitthal.AMDAudioSync;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
-				SYSTEM_HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/MacKernelSDK/Headers";
+				SYSTEM_HEADER_SEARCH_PATHS = "$(SRCROOT)/MacKernelSDK/Headers";
 				WRAPPER_EXTENSION = kext;
 			};
 			name = Debug;
@@ -142,17 +143,18 @@
 		A90000020000000000000001 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
 				CLANG_CXX_LIBRARY = "libc++";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)",
+					"$(SRCROOT)",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)/Lilu.kext/Contents/Resources",
-					"$(PROJECT_DIR)/MacKernelSDK/Headers",
+					"$(SRCROOT)/Lilu.kext/Contents/Resources",
+					"$(SRCROOT)/MacKernelSDK/Headers",
 				);
 				INFOPLIST_FILE = AMDAudioSync/Info.plist;
 				MODULE_NAME = dev.vitthal.AMDAudioSync;
@@ -161,12 +163,12 @@
 				MODULE_VERSION = 1.0.0;
 				OTHER_LDFLAGS = (
 					"-Wl,-unexported_symbol,__ZN19KernelPatcherPlugin*",
-					"$(PROJECT_DIR)/Lilu.kext/Contents/MacOS/Lilu",
+					"$(SRCROOT)/Lilu.kext/Contents/MacOS/Lilu",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = dev.vitthal.AMDAudioSync;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
-				SYSTEM_HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/MacKernelSDK/Headers";
+				SYSTEM_HEADER_SEARCH_PATHS = "$(SRCROOT)/MacKernelSDK/Headers";
 				WRAPPER_EXTENSION = kext;
 			};
 			name = Release;

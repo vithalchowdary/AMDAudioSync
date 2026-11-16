@@ -1,29 +1,46 @@
-#!/bin/bash
-set -e
+name: Build AMDAudioSync
 
-echo "=== Building NootedAudioFix.kext ==="
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
 
-# Clone MacKernelSDK if not present
-if [ ! -d "MacKernelSDK" ]; then
-    echo "Cloning Acidanthera MacKernelSDK..."
-    git clone --depth 1 https://github.com/acidanthera/MacKernelSDK.git
-fi
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
-# Fetch debug Lilu.kext if not present
-if [ ! -d "Lilu.kext" ]; then
-    echo "Downloading latest Lilu DEBUG kext for headers & linking..."
-    LILU_URL=$(curl -s https://api.github.com/repos/acidanthera/Lilu/releases/latest | grep browser_download_url | grep RELEASE.zip | cut -d '"' -f 4)
-    curl -L "$LILU_URL" -o Lilu.zip
-    unzip -q Lilu.zip "Lilu.kext/*"
-    rm -f Lilu.zip
-fi
+    - name: Clone MacKernelSDK
+      run: git clone --depth 1 https://github.com/acidanthera/MacKernelSDK.git
 
-xcodebuild -project AMDAudioSync.xcodeproj \
-  -configuration Release \
-  ARCHS=x86_64 \
-  LIBRARY_SEARCH_PATHS="\$(PROJECT_DIR)/MacKernelSDK/Library/x86_64" \
-  OTHER_LDFLAGS="-Wl,-kext -Wl,-undefined,dynamic_lookup \$(PROJECT_DIR)/MacKernelSDK/Library/x86_64/libkmod.a" \
-  clean build
-echo "=== Build complete! Output is in build/Release/AMDAudioSync.kext ==="
+    - name: Download Lilu DEBUG
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        LILU_URL=$(curl -sH "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/acidanthera/Lilu/releases/latest | grep browser_download_url | grep DEBUG.zip | cut -d '"' -f 4)
+        curl -L "$LILU_URL" -o Lilu.zip
+        unzip -q Lilu.zip "Lilu.kext/*"
+        
+        # Physical verification of the headers
+        if [ ! -f "Lilu.kext/Contents/Resources/Headers/kern_patcher.hpp" ]; then
+          echo "Lilu headers failed to extract!"
+          exit 1
+        fi
+
+    - name: Build Kext
+      run: |
+        xcodebuild -project AMDAudioSync.xcodeproj -configuration Release ARCHS=x86_64 \
+        HEADER_SEARCH_PATHS="$(pwd)/Lilu.kext/Contents/Resources $(pwd)/MacKernelSDK/Headers" \
+        SYSTEM_HEADER_SEARCH_PATHS="$(pwd)/MacKernelSDK/Headers" \
+        OTHER_LDFLAGS="-Wl,-unexported_symbol,__ZN19KernelPatcherPlugin* $(pwd)/Lilu.kext/Contents/MacOS/Lilu" \
+        clean build
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: AMDAudioSync-Release
+        path: build/Release/AMDAudioSync.kext

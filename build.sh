@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "=== Building AMDAudioSync.kext ==="
+echo "=== Building NootedAudioFix.kext ==="
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
@@ -20,10 +20,10 @@ if [ ! -d "Lilu.kext" ]; then
     rm -f Lilu.zip
 fi
 
-xcodebuild -project AMDAudioSync.xcodeproj \
+xcodebuild -project NootedAudioFix.xcodeproj \
   -configuration Release \
   ARCHS=x86_64 \
   LIBRARY_SEARCH_PATHS="\$(PROJECT_DIR)/MacKernelSDK/Library/x86_64" \
   OTHER_LDFLAGS="-Wl,-kext -Wl,-undefined,dynamic_lookup \$(PROJECT_DIR)/MacKernelSDK/Library/x86_64/libkmod.a" \
   clean build
-echo "=== Build complete! Output is in build/Release/AMDAudioSync.kext ==="
+echo "=== Build complete! Output is in build/Release/NootedAudioFix.kext ==="

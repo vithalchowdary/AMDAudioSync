@@ -5,15 +5,30 @@
 
 #include "AMDAudioSync.hpp"
 #include <Headers/kern_api.hpp>
-#include <Headers/kern_iokit.hpp>
 #include <Headers/kern_util.hpp>
 
-AMDAudioSync *AMDAudioSync::callbackInstance = nullptr;
+static const char *kextX6000FBPath[] {
+    "/System/Library/Extensions/AMDRadeonX6000Framebuffer.kext/Contents/MacOS/AMDRadeonX6000Framebuffer"
+};
+
+static KernelPatcher::KextInfo kextX6000FB {
+    "com.apple.kext.AMDRadeonX6000Framebuffer",
+    kextX6000FBPath,
+    arrsize(kextX6000FBPath),
+    {true, true},
+    {},
+    KernelPatcher::KextInfo::Unloaded
+};
+
+static mach_vm_address_t orgReportCapabilitiesLinkInfo = 0;
+static mach_vm_address_t orgDce110SeAudioSetup = 0;
+static mach_vm_address_t orgEnc1SeAudioSetup = 0;
+
+static UInt8 activeAzaliaEndpointForDig[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+static bool hasCapturedStreamSetup[8] = {false, false, false, false, false, false, false, false};
 
 void AMDAudioSync::init() {
-    callbackInstance = this;
-
-    auto err = lilu.onKextLoad(&kextX6000FB, 1, onKextLoad, this);
+    auto err = lilu.onKextLoad(&kextX6000FB, 1, onKextLoad, nullptr);
     if (err != LiluAPI::Error::NoError) {
         SYSLOG("ADAS", "Failed to register framebuffer callback (%d)", err);
     } else {
@@ -23,11 +38,8 @@ void AMDAudioSync::init() {
 
 void AMDAudioSync::deinit() {}
 
-void AMDAudioSync::onKextLoad(void *user, KernelPatcher &patcher, size_t index, mach_vm_address_t address, size_t size) {
-    auto *self = static_cast<AMDAudioSync *>(user);
-    if (self != nullptr) {
-        self->processKext(patcher, index, address, size);
-    }
+void AMDAudioSync::onKextLoad(void *, KernelPatcher &patcher, size_t index, mach_vm_address_t address, size_t size) {
+    processKext(patcher, index, address, size);
 }
 
 void AMDAudioSync::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t address, size_t size) {
@@ -35,15 +47,12 @@ void AMDAudioSync::processKext(KernelPatcher &patcher, size_t index, mach_vm_add
         return;
     }
 
-    // 1. Hook Display Core stream encoder audio setup to dynamically capture pipe_ctx->stream_res.audio->inst
     KernelPatcher::RouteRequest dceReq {
         "_dce110_se_audio_setup",
         wrapDceSeAudioSetup,
         orgDce110SeAudioSetup
     };
-    if (patcher.routeMultiple(index, &dceReq, 1, address, size)) {
-        SYSLOG("ADAS", "Routed _dce110_se_audio_setup");
-    } else {
+    if (!patcher.routeMultiple(index, &dceReq, 1, address, size)) {
         patcher.clearError();
     }
 
@@ -52,14 +61,10 @@ void AMDAudioSync::processKext(KernelPatcher &patcher, size_t index, mach_vm_add
         wrapEnc1SeAudioSetup,
         orgEnc1SeAudioSetup
     };
-    if (patcher.routeMultiple(index, &enc1Req, 1, address, size)) {
-        SYSLOG("ADAS", "Routed _enc1_se_audio_setup");
-    } else {
+    if (!patcher.routeMultiple(index, &enc1Req, 1, address, size)) {
         patcher.clearError();
     }
 
-    // 2. Hook AMDRadeonX6000_AmdRadeonFramebuffer::reportCapabilities_LinkInfo()
-    // Use routeMultipleLong so it safely chains even if another kext routed nearby symbols
     KernelPatcher::RouteRequest linkInfoReq {
         "__ZN35AMDRadeonX6000_AmdRadeonFramebuffer27reportCapabilities_LinkInfoEv",
         wrapReportCapabilitiesLinkInfo,
@@ -70,64 +75,52 @@ void AMDAudioSync::processKext(KernelPatcher &patcher, size_t index, mach_vm_add
         SYSLOG("ADAS", "Failed to route reportCapabilities_LinkInfo");
         patcher.clearError();
     } else {
-        SYSLOG("ADAS", "Successfully routed reportCapabilities_LinkInfo");
+        SYSLOG("ADAS", "Routed reportCapabilities_LinkInfo");
     }
 }
 
 void AMDAudioSync::wrapDceSeAudioSetup(void *streamEnc, void *audioInfo, UInt32 audioStreamSource, void *crtcInfo) {
-    auto *self = callbackInstance;
-    if (self != nullptr) {
-        const auto azInst = static_cast<UInt32>(reinterpret_cast<uintptr_t>(audioInfo));
-        if (azInst < 6) {
-            for (size_t i = 0; i < 8; i++) {
-                self->activeAzaliaEndpointForDig[i] = static_cast<UInt8>(azInst);
-                self->hasCapturedStreamSetup[i] = true;
-            }
-            DBGLOG("ADAS", "Captured dce110_se_audio_setup: az_inst=%u -> Pin NID 0x%02X",
-                   azInst, static_cast<UInt8>(3U + 2U * azInst));
+    const auto azInst = static_cast<UInt32>(reinterpret_cast<uintptr_t>(audioInfo));
+    if (azInst < 6) {
+        for (size_t i = 0; i < 8; i++) {
+            activeAzaliaEndpointForDig[i] = static_cast<UInt8>(azInst);
+            hasCapturedStreamSetup[i] = true;
         }
-        if (self->orgDce110SeAudioSetup != 0) {
-            FunctionCast(wrapDceSeAudioSetup, self->orgDce110SeAudioSetup)(streamEnc, audioInfo, audioStreamSource, crtcInfo);
-        }
+    }
+    if (orgDce110SeAudioSetup != 0) {
+        FunctionCast(wrapDceSeAudioSetup, orgDce110SeAudioSetup)(streamEnc, audioInfo, audioStreamSource, crtcInfo);
     }
 }
 
 void AMDAudioSync::wrapEnc1SeAudioSetup(void *streamEnc, void *audioInfo, UInt32 audioStreamSource, void *crtcInfo) {
-    auto *self = callbackInstance;
-    if (self != nullptr) {
-        const auto azInst = static_cast<UInt32>(reinterpret_cast<uintptr_t>(audioInfo));
-        if (azInst < 6) {
-            for (size_t i = 0; i < 8; i++) {
-                self->activeAzaliaEndpointForDig[i] = static_cast<UInt8>(azInst);
-                self->hasCapturedStreamSetup[i] = true;
-            }
-            DBGLOG("ADAS", "Captured enc1_se_audio_setup: az_inst=%u -> Pin NID 0x%02X",
-                   azInst, static_cast<UInt8>(3U + 2U * azInst));
+    const auto azInst = static_cast<UInt32>(reinterpret_cast<uintptr_t>(audioInfo));
+    if (azInst < 6) {
+        for (size_t i = 0; i < 8; i++) {
+            activeAzaliaEndpointForDig[i] = static_cast<UInt8>(azInst);
+            hasCapturedStreamSetup[i] = true;
         }
-        if (self->orgEnc1SeAudioSetup != 0) {
-            FunctionCast(wrapEnc1SeAudioSetup, self->orgEnc1SeAudioSetup)(streamEnc, audioInfo, audioStreamSource, crtcInfo);
-        }
+    }
+    if (orgEnc1SeAudioSetup != 0) {
+        FunctionCast(wrapEnc1SeAudioSetup, orgEnc1SeAudioSetup)(streamEnc, audioInfo, audioStreamSource, crtcInfo);
     }
 }
 
 IOReturn AMDAudioSync::wrapReportCapabilitiesLinkInfo(void *self) {
-    auto *inst = callbackInstance;
-    if (inst == nullptr || inst->orgReportCapabilitiesLinkInfo == 0) {
+    if (orgReportCapabilitiesLinkInfo == 0) {
         return kIOReturnSuccess;
     }
 
-    const IOReturn ret = FunctionCast(wrapReportCapabilitiesLinkInfo, inst->orgReportCapabilitiesLinkInfo)(self);
+    const IOReturn ret = FunctionCast(wrapReportCapabilitiesLinkInfo, orgReportCapabilitiesLinkInfo)(self);
     if (self == nullptr) {
         return ret;
     }
 
-    // AMDRadeonX6000_AmdRadeonFramebuffer inherits directly from IOFramebuffer -> IOGraphicsDevice -> IOService -> IORegistryEntry
-    auto *regEntry = OSDynamicCast(IORegistryEntry, static_cast<OSObject *>(self));
-    if (regEntry == nullptr) {
+    auto *svc = OSDynamicCast(IOService, static_cast<OSMetaClassBase *>(self));
+    if (svc == nullptr) {
         return ret;
     }
 
-    auto *prop = OSDynamicCast(OSData, regEntry->getProperty("audio-codec-info"));
+    auto *prop = OSDynamicCast(OSData, svc->getProperty("audio-codec-info"));
     if (prop == nullptr || prop->getLength() != 4) {
         return ret;
     }
@@ -149,18 +142,17 @@ IOReturn AMDAudioSync::wrapReportCapabilitiesLinkInfo(void *self) {
     } else if (appleStaticPin >= 0x03 && appleStaticPin <= 0x0F && (appleStaticPin % 2) == 1) {
         const UInt32 transmitterDigIdx = (appleStaticPin - 3U) / 2U;
 
-        if (transmitterDigIdx < 8 && inst->hasCapturedStreamSetup[transmitterDigIdx]) {
-            const UInt8 dcEndpoint = inst->activeAzaliaEndpointForDig[transmitterDigIdx];
+        if (transmitterDigIdx < 8 && hasCapturedStreamSetup[transmitterDigIdx]) {
+            const UInt8 dcEndpoint = activeAzaliaEndpointForDig[transmitterDigIdx];
             targetPin = static_cast<UInt8>(3U + (2U * dcEndpoint));
         } else if (appleStaticPin == 0x05) {
-            // Default active first audio stream in Display Core (`dce_aud[0]`) is always endpoint 0 (Pin NID 0x03)
             targetPin = 0x03;
         }
     }
 
     if (targetPin != appleStaticPin) {
         UInt8 newInfo[4] = {bytes[0], bytes[1], targetPin, bytes[3]};
-        regEntry->setProperty("audio-codec-info", newInfo, sizeof(newInfo));
+        svc->setProperty("audio-codec-info", newInfo, sizeof(newInfo));
         SYSLOG("ADAS", "Synced audio-codec-info Pin NID from 0x%02X to 0x%02X", appleStaticPin, targetPin);
     }
 

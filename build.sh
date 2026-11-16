@@ -5,13 +5,13 @@ echo "=== Building AMDAudioSync.kext ==="
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-
+# 1. Clone MacKernelSDK
 if [ ! -d "MacKernelSDK" ]; then
     echo "Cloning Acidanthera MacKernelSDK..."
     git clone --depth 1 https://github.com/acidanthera/MacKernelSDK.git
 fi
 
- 
+# 2. Download Lilu DEBUG
 if [ ! -d "Lilu.kext" ]; then
     echo "Downloading latest Lilu DEBUG kext for headers & linking..."
     if [ -n "$GITHUB_TOKEN" ]; then
@@ -19,23 +19,25 @@ if [ ! -d "Lilu.kext" ]; then
     else
         LILU_URL=$(curl -s https://api.github.com/repos/acidanthera/Lilu/releases/latest | grep browser_download_url | grep DEBUG.zip | cut -d '"' -f 4)
     fi
-    
+
     if [ -z "$LILU_URL" ]; then
         echo "Failed to fetch Lilu download URL."
         exit 1
     fi
-    
+
     curl -L "$LILU_URL" -o Lilu.zip
     unzip -q Lilu.zip "Lilu.kext/*"
     rm -f Lilu.zip
 fi
 
-
+# 3. Build Kext with mandatory Apple Kext ABI flags (-mkernel -fapple-kext)
 echo "Compiling kext..."
 xcodebuild -project AMDAudioSync.xcodeproj -configuration Release ARCHS=x86_64 \
 HEADER_SEARCH_PATHS="$(pwd)/Lilu.kext/Contents/Resources $(pwd)/MacKernelSDK/Headers" \
 SYSTEM_HEADER_SEARCH_PATHS="$(pwd)/MacKernelSDK/Headers" \
-OTHER_LDFLAGS="-Wl,-unexported_symbol,__ZN19KernelPatcherPlugin* $(pwd)/Lilu.kext/Contents/MacOS/Lilu -undefined dynamic_lookup -Wl,-ld_classic" \
+OTHER_CFLAGS="-mkernel -fno-builtin -fno-common -fno-stack-protector" \
+OTHER_CPLUSPLUSFLAGS="-mkernel -fapple-kext -fno-builtin -fno-common -fno-stack-protector -fno-exceptions -fno-rtti" \
+OTHER_LDFLAGS="-mkernel -nostdlib -Wl,-kext -Wl,-unexported_symbol,__ZN19KernelPatcherPlugin* $(pwd)/Lilu.kext/Contents/MacOS/Lilu -lkmodc++ -lkmod -lcc_kext -undefined dynamic_lookup -Wl,-ld_classic" \
 clean build
 
 echo "=== Build complete! Output is in build/Release/AMDAudioSync.kext ==="

@@ -1,46 +1,42 @@
-name: Build AMDAudioSync
+#!/bin/bash
+set -e
 
-on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-  workflow_dispatch:
+echo "=== Building AMDAudioSync.kext ==="
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
-jobs:
-  build:
-    runs-on: macos-latest
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+# 1. Clone MacKernelSDK
+if [ ! -d "MacKernelSDK" ]; then
+    echo "Cloning Acidanthera MacKernelSDK..."
+    git clone --depth 1 https://github.com/acidanthera/MacKernelSDK.git
+fi
 
-    - name: Clone MacKernelSDK
-      run: git clone --depth 1 https://github.com/acidanthera/MacKernelSDK.git
-
-    - name: Download Lilu DEBUG
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
+# 2. Download Lilu DEBUG 
+if [ ! -d "Lilu.kext" ]; then
+    echo "Downloading latest Lilu DEBUG kext for headers & linking..."
+    # If GITHUB_TOKEN is available, use it to avoid rate limits, else fallback to standard curl
+    if [ -n "$GITHUB_TOKEN" ]; then
         LILU_URL=$(curl -sH "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/acidanthera/Lilu/releases/latest | grep browser_download_url | grep DEBUG.zip | cut -d '"' -f 4)
-        curl -L "$LILU_URL" -o Lilu.zip
-        unzip -q Lilu.zip "Lilu.kext/*"
-        
-        # Physical verification of the headers
-        if [ ! -f "Lilu.kext/Contents/Resources/Headers/kern_patcher.hpp" ]; then
-          echo "Lilu headers failed to extract!"
-          exit 1
-        fi
+    else
+        LILU_URL=$(curl -s https://api.github.com/repos/acidanthera/Lilu/releases/latest | grep browser_download_url | grep DEBUG.zip | cut -d '"' -f 4)
+    fi
+    
+    if [ -z "$LILU_URL" ]; then
+        echo "Failed to fetch Lilu download URL. GitHub API rate limit likely exceeded."
+        exit 1
+    fi
+    
+    curl -L "$LILU_URL" -o Lilu.zip
+    unzip -q Lilu.zip "Lilu.kext/*"
+    rm -f Lilu.zip
+fi
 
-    - name: Build Kext
-      run: |
-        xcodebuild -project AMDAudioSync.xcodeproj -configuration Release ARCHS=x86_64 \
-        HEADER_SEARCH_PATHS="$(pwd)/Lilu.kext/Contents/Resources $(pwd)/MacKernelSDK/Headers" \
-        SYSTEM_HEADER_SEARCH_PATHS="$(pwd)/MacKernelSDK/Headers" \
-        OTHER_LDFLAGS="-Wl,-unexported_symbol,__ZN19KernelPatcherPlugin* $(pwd)/Lilu.kext/Contents/MacOS/Lilu" \
-        clean build
+# 3. Build Kext with explicit header paths
+echo "Compiling kext..."
+xcodebuild -project AMDAudioSync.xcodeproj -configuration Release ARCHS=x86_64 \
+HEADER_SEARCH_PATHS="$(pwd)/Lilu.kext/Contents/Resources $(pwd)/MacKernelSDK/Headers" \
+SYSTEM_HEADER_SEARCH_PATHS="$(pwd)/MacKernelSDK/Headers" \
+OTHER_LDFLAGS="-Wl,-unexported_symbol,__ZN19KernelPatcherPlugin* $(pwd)/Lilu.kext/Contents/MacOS/Lilu" \
+clean build
 
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: AMDAudioSync-Release
-        path: build/Release/AMDAudioSync.kext
+echo "=== Build complete! Output is in build/Release/AMDAudioSync.kext ==="

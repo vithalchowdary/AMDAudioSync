@@ -8,7 +8,7 @@
 //  Boot-args:
 //    amdhdmipin=N   force HDA pin NID N (valid HDMI/DP pins on Raven/Picasso: 3, 5, 7, 9)
 //    -NRedHDMIPin3  old spelling of amdhdmipin=3, kept so existing boot-args keep working
-//  With neither, nothing is changed; the value Apple chose is only logged.
+//  With neither, dynamic stream capture or fallback logic is used.
 //
 
 #include "AMDAudioSync.hpp"
@@ -29,18 +29,15 @@ static KernelPatcher::KextInfo kextX6000FB {
 };
 
 static mach_vm_address_t orgReportCapabilitiesLinkInfo = 0;
-<<<<<<< HEAD
 static mach_vm_address_t orgDce110SeAudioSetup = 0;
 static mach_vm_address_t orgEnc1SeAudioSetup = 0;
 
 static UInt8 activeAzaliaEndpointForDig[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 static bool hasCapturedStreamSetup[8] = {false, false, false, false, false, false, false, false};
-=======
 
 static bool isValidPin(UInt32 pin) {
     return pin >= 3 && pin <= 15 && (pin % 2) == 1;
 }
->>>>>>> d3897b7 (test)
 
 void AMDAudioSync::init() {
     auto err = lilu.onKextLoad(&kextX6000FB, 1, onKextLoad, nullptr);
@@ -51,11 +48,8 @@ void AMDAudioSync::init() {
     }
 }
 
-<<<<<<< HEAD
 void AMDAudioSync::deinit() {}
 
-=======
->>>>>>> d3897b7 (test)
 void AMDAudioSync::onKextLoad(void *, KernelPatcher &patcher, size_t index, mach_vm_address_t address, size_t size) {
     processKext(patcher, index, address, size);
 }
@@ -65,7 +59,6 @@ void AMDAudioSync::processKext(KernelPatcher &patcher, size_t index, mach_vm_add
         return;
     }
 
-<<<<<<< HEAD
     KernelPatcher::RouteRequest dceReq {
         "_dce110_se_audio_setup",
         wrapDceSeAudioSetup,
@@ -84,10 +77,8 @@ void AMDAudioSync::processKext(KernelPatcher &patcher, size_t index, mach_vm_add
         patcher.clearError();
     }
 
-=======
     SYSLOG("ADAS", "AMDRadeonX6000Framebuffer loaded, routing reportCapabilities_LinkInfo");
 
->>>>>>> d3897b7 (test)
     KernelPatcher::RouteRequest linkInfoReq {
         "__ZN35AMDRadeonX6000_AmdRadeonFramebuffer27reportCapabilities_LinkInfoEv",
         wrapReportCapabilitiesLinkInfo,
@@ -99,7 +90,6 @@ void AMDAudioSync::processKext(KernelPatcher &patcher, size_t index, mach_vm_add
         patcher.clearError();
     } else {
         SYSLOG("ADAS", "Routed reportCapabilities_LinkInfo");
-<<<<<<< HEAD
     }
 }
 
@@ -123,8 +113,6 @@ void AMDAudioSync::wrapEnc1SeAudioSetup(void *streamEnc, void *audioInfo, UInt32
             activeAzaliaEndpointForDig[i] = static_cast<UInt8>(azInst);
             hasCapturedStreamSetup[i] = true;
         }
-=======
->>>>>>> d3897b7 (test)
     }
     if (orgEnc1SeAudioSetup != 0) {
         FunctionCast(wrapEnc1SeAudioSetup, orgEnc1SeAudioSetup)(streamEnc, audioInfo, audioStreamSource, crtcInfo);
@@ -132,10 +120,6 @@ void AMDAudioSync::wrapEnc1SeAudioSetup(void *streamEnc, void *audioInfo, UInt32
 }
 
 IOReturn AMDAudioSync::wrapReportCapabilitiesLinkInfo(void *self) {
-<<<<<<< HEAD
-=======
-    // The route only exists if the original was found, so this should never be 0.
->>>>>>> d3897b7 (test)
     if (orgReportCapabilitiesLinkInfo == 0) {
         return kIOReturnSuccess;
     }
@@ -147,10 +131,7 @@ IOReturn AMDAudioSync::wrapReportCapabilitiesLinkInfo(void *self) {
 
     auto *svc = OSDynamicCast(IOService, static_cast<OSMetaClassBase *>(self));
     if (svc == nullptr) {
-<<<<<<< HEAD
-=======
         SYSLOG("ADAS", "framebuffer object is not an IOService");
->>>>>>> d3897b7 (test)
         return ret;
     }
 
@@ -182,8 +163,7 @@ IOReturn AMDAudioSync::wrapReportCapabilitiesLinkInfo(void *self) {
         }
     } else if (checkKernelArgument("-NRedHDMIPin3")) {
         targetPin = 0x03;
-<<<<<<< HEAD
-    } else if (appleStaticPin >= 0x03 && appleStaticPin <= 0x0F && (appleStaticPin % 2) == 1) {
+    } else if (isValidPin(appleStaticPin)) {
         const UInt32 transmitterDigIdx = (appleStaticPin - 3U) / 2U;
 
         if (transmitterDigIdx < 8 && hasCapturedStreamSetup[transmitterDigIdx]) {
@@ -192,20 +172,12 @@ IOReturn AMDAudioSync::wrapReportCapabilitiesLinkInfo(void *self) {
         } else if (appleStaticPin == 0x05) {
             targetPin = 0x03;
         }
-=======
-    } else {
-        SYSLOG("ADAS", "Apple pin NID is 0x%02X; add amdhdmipin=3 (or 5/7/9) to boot-args to override", appleStaticPin);
->>>>>>> d3897b7 (test)
     }
 
     if (targetPin != appleStaticPin) {
         UInt8 newInfo[4] = {bytes[0], bytes[1], targetPin, bytes[3]};
         svc->setProperty("audio-codec-info", newInfo, sizeof(newInfo));
-<<<<<<< HEAD
         SYSLOG("ADAS", "Synced audio-codec-info Pin NID from 0x%02X to 0x%02X", appleStaticPin, targetPin);
-=======
-        SYSLOG("ADAS", "Changed audio-codec-info Pin NID from 0x%02X to 0x%02X", appleStaticPin, targetPin);
->>>>>>> d3897b7 (test)
     }
 
     return ret;

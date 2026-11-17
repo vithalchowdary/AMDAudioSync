@@ -33,6 +33,6 @@ PluginConfiguration ADDPR(config) {
     KernelVersion::Catalina,
     KernelVersion::Tahoe,
     []() {
-        AMDAudioSync::init();
+        AMDAudioSyncHandler::init();
     }
 };

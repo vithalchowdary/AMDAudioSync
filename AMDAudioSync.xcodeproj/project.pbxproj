@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		A10000010000000000000001 /* kern_start.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000001 /* kern_start.cpp */; };
 		A10000020000000000000001 /* AMDAudioSync.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A20000020000000000000001 /* AMDAudioSync.cpp */; };
+		A10000030000000000000001 /* plugin_start.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A20000050000000000000001 /* plugin_start.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -17,6 +18,7 @@
 		A20000030000000000000001 /* AMDAudioSync.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = AMDAudioSync.hpp; sourceTree = "<group>"; };
 		A20000040000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A30000010000000000000001 /* AMDAudioSync.kext */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AMDAudioSync.kext; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000050000000000000001 /* plugin_start.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = plugin_start.cpp; path = Lilu/Lilu/Library/plugin_start.cpp; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -24,6 +26,7 @@
 			isa = PBXGroup;
 			children = (
 				A40000010000000000000001 /* AMDAudioSync */,
+				A20000050000000000000001 /* plugin_start.cpp */,
 				A40000020000000000000001 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -97,6 +100,7 @@
 			files = (
 				A10000010000000000000001 /* kern_start.cpp in Sources */,
 				A10000020000000000000001 /* AMDAudioSync.cpp in Sources */,
+				A10000030000000000000001 /* plugin_start.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -117,16 +121,18 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
 					"$(inherited)",
+					"PRODUCT_NAME=$(PRODUCT_NAME)",
+					"MODULE_VERSION=$(MODULE_VERSION)",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(SRCROOT)/Lilu.kext/Contents/Resources",
+					"$(SRCROOT)/Lilu/Lilu",
 					"$(SRCROOT)/MacKernelSDK/Headers",
 				);
 				INFOPLIST_FILE = AMDAudioSync/Info.plist;
 				MODULE_NAME = dev.vitthal.AMDAudioSync;
-				MODULE_START = _kern_start;
-				MODULE_STOP = _kern_stop;
+				MODULE_START = "$(PRODUCT_NAME)_kern_start";
+				MODULE_STOP = "$(PRODUCT_NAME)_kern_stop";
 				MODULE_VERSION = 1.0.0;
 				OTHER_LDFLAGS = (
 					"-Wl,-unexported_symbol,__ZN19KernelPatcherPlugin*",
@@ -151,15 +157,20 @@
 					"$(inherited)",
 					"$(SRCROOT)",
 				);
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"PRODUCT_NAME=$(PRODUCT_NAME)",
+					"MODULE_VERSION=$(MODULE_VERSION)",
+				);
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(SRCROOT)/Lilu.kext/Contents/Resources",
+					"$(SRCROOT)/Lilu/Lilu",
 					"$(SRCROOT)/MacKernelSDK/Headers",
 				);
 				INFOPLIST_FILE = AMDAudioSync/Info.plist;
 				MODULE_NAME = dev.vitthal.AMDAudioSync;
-				MODULE_START = _kern_start;
-				MODULE_STOP = _kern_stop;
+				MODULE_START = "$(PRODUCT_NAME)_kern_start";
+				MODULE_STOP = "$(PRODUCT_NAME)_kern_stop";
 				MODULE_VERSION = 1.0.0;
 				OTHER_LDFLAGS = (
 					"-Wl,-unexported_symbol,__ZN19KernelPatcherPlugin*",
